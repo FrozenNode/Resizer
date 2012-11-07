@@ -53,7 +53,6 @@ class Resizer {
 	 */
 	private $image_resized;
 	
-<<<<<<< HEAD
 	/*
 	*	Crop type
 	*	@var string
@@ -98,26 +97,28 @@ class Resizer {
 	*/
 	private $upload_callback;
 	
-=======
->>>>>>> Resizer/master
+	/*
+	*	Additional arguments to be passed into the callback
+	*	@var array
+	*/
+	private $upload_callback_args;
+	
+	/**
+	* Whether or not this is a single file resize or an upload and resize
+	*
+	**/
+	private $single = false;
+	
 	/**
 	 * Instantiates the Resizer and receives the path to an image we're working with
 	 * @param mixed $file The file array provided by Laravel's Input::file('field_name') or a path to a file
 	 */
 	function __construct( $file )
 	{
-<<<<<<< HEAD
 		if(!empty($file)){
+			$this->single = true;
 			$this->image = $file;
 		}
-=======
-		// Open up the file
-		$this->image = $this->open_image( $file );
-		
-		// Get width and height of our image
-		$this->width  = imagesx( $this->image );
-		$this->height = imagesy( $this->image );
->>>>>>> Resizer/master
 	}
 	
 	/**
@@ -126,16 +127,11 @@ class Resizer {
 	 * @param  mixed $file The file array provided by Laravel's Input::file('field_name') or a path to a file
 	 * @return Resizer
 	 */
-<<<<<<< HEAD
 	public static function open( $file = '' )
-=======
-	public static function open( $file )
->>>>>>> Resizer/master
 	{
 		return new Resizer( $file );
 	}
 	
-<<<<<<< HEAD
 	
 	/*	
 	*	Uploading function 
@@ -145,7 +141,7 @@ class Resizer {
 	* @param  bool $random Whether or not to randomize the filename, the filename will be set to a 32 character string if true
 	* @return Multup
 	*/
-	public function upload($input, $rules, $path, $random = true)
+	public function upload( $input, $rules, $path, $random = true)
 	{
 		/* set some properties to be used in other functions */
 		$this->input  = $input;
@@ -179,8 +175,6 @@ class Resizer {
 				$this->post_upload_proccess($this->upload_image());
 			}
 		}
-		/* clear out the image so the resize function knows to check the images */
-		$this->image = '';
 		
 		return $this;
 	
@@ -192,7 +186,7 @@ class Resizer {
 	private function upload_image(){
 		
 		/* validate the image */
-		$validation = Validator::make($this->image, array($this->input => $this->rules));
+		$validation = Validator::make( $this->image, array($this->input => $this->rules) );
 		$errors = array();	
 		$filename = $this->image[$this->input]['name'];
 		$path = '';
@@ -236,13 +230,18 @@ class Resizer {
 			filename -> the name of the successfully uploaded file
 		@return void
 	*/
-	private function post_upload_proccess( $save){
+	private function post_upload_proccess( $save )
+	{
 		
 		if(empty($save['errors'])){
 			/* add the saved image to the images array thing */
 			$args =  array('path' => $this->path.$save['filename'], 'filename' => $save['filename'], 'resized' => '');
 			
 			if(is_callable($this->upload_callback)){
+				if(!empty($this->upload_callback_args) && is_array($this->upload_callback_args)){
+					$args = array_merge($this->upload_callback_args,$args);
+				}
+			
 				$args['callback_result']  = call_user_func( $this->upload_callback, $args);
 			}
 			$this->images[] = $args;
@@ -256,10 +255,11 @@ class Resizer {
 		Set the callback function to be called after each image is done uploading
 		@var mixed anonymous function or string name of function
 	*/
-	public function after_upload($cb){
-		
+	public function after_upload( $cb, $args = '')
+	{
 		if(is_callable($cb)){
 			$this->upload_callback = $cb;
+			$this->upload_callback_args = $args;
 		} else {
 			/* some sort of error... */
 		}
@@ -275,8 +275,6 @@ class Resizer {
 		return $this->errors;
 	}
 	
-=======
->>>>>>> Resizer/master
 	/**
 	 * Resizes and/or crops an image
 	 * @param  int    $new_width  The width of the image
@@ -284,28 +282,45 @@ class Resizer {
 	 * @param  string $option     Either exact, portrait, landscape, auto or crop.
 	 * @return [type]
 	 */
-	public function resize( $new_width , $new_height , $option = 'auto' )
+	//public function resize( $new_width , $new_height , $option = 'auto' )
+	public function resize( $sizes )
 	{
-<<<<<<< HEAD
-		$this->new_width = $new_width;
-		$this->new_height = $new_height;
-		$this->option = $option;
-		
-		if(!empty($this->image)){
-			$this->resize_single( $this->image);
-		} else{
-			if(!empty($this->images)){
-				//loop through each filepath for the uploaded images
-				$count = count($this->images);
-				for($i = 0; $i <  $count; $i++){
-					$this->resize_single(  'public/'.$this->images[$i]['path'], $i );
-					$this->images[$i]['resized'] = $this->image_resized;
+		if(is_array($sizes)){
+			//width, height, option, path, quality
+			$resized = array();
+			
+			$j = 0;
+			foreach($sizes as $size){
+			
+				$this->new_width = $size[0]; //$new_width;
+				$this->new_height = $size[1]; //$new_height;
+				$this->option = $size[2];
+				
+				if($this->single){
+					$this->resize_single( $this->image );
+					
+					$resized[$j] = $this->write( $size[3], $size[4], $this->image_resized );
+					
+				} else{
+					if(!empty($this->images)){
+						//loop through each filepath for the uploaded images
+						$count = count($this->images);
+						for($i = 0; $i <  $count; $i++){
+							$this->resize_single( 'public/'.$this->images[$i]['path']);
+							$this->images[$i]['resized'][$j] = $this->write( $size[3].$this->images[$i]['filename'], $size[4], $this->image_resized );
+						}
+						/* clear out the resized image and change it to a string to let the save function know to look for multiple resized resources */
+					}
 				}
-				/* clear out the resized image and change it to a string to let the save function know to look for multiple resized resources */
-				$this->image_resized = 'multiple'; 
+				
+				$j++;
 			}
 		}
-		return $this;
+		if($this->single){
+			return $resized;
+		} else {
+			return $this->images;
+		}
 	}
 	
 	/*
@@ -322,10 +337,6 @@ class Resizer {
 	
 		// Get optimal width and height - based on $option.
 		$option_array = $this->get_dimensions( $this->new_width , $this->new_height , $this->option );
-=======
-		// Get optimal width and height - based on $option.
-		$option_array = $this->get_dimensions( $new_width , $new_height , $option );
->>>>>>> Resizer/master
 		
 		$optimal_width	= $option_array['optimal_width'];
 		$optimal_height	= $option_array['optimal_height'];
@@ -342,56 +353,19 @@ class Resizer {
 		imagecopyresampled( $this->image_resized , $this->image , 0 , 0 , 0 , 0 , $optimal_width , $optimal_height , $this->width , $this->height );
 		
 		// if option is 'crop' or 'fit', then crop too
-<<<<<<< HEAD
 		if ( $this->option == 'crop' || $this->option == 'fit' ) {
 			$this->crop( $optimal_width , $optimal_height , $this->new_width , $this->new_height );
-=======
-		if ( $option == 'crop' || $option == 'fit' ) {
-			$this->crop( $optimal_width , $optimal_height , $new_width , $new_height );
->>>>>>> Resizer/master
 		}
 		
 		// Return $this to allow calls to be chained
 		return $this;
 	}
 	
-	/**
-	 * Save the image based on its file type.
-	 * @param  string $save_path     Where to save the image
-	 * @param  int    $image_quality The output quality of the image
-	 * @return boolean
-	 */
-	public function save( $save_path , $image_quality = 95 )
-	{
-		// If the image wasn't resized, fetch original image.
-<<<<<<< HEAD
-		if ($this->image_resized !== 'multiple' ) {
-			
-			if(!$this->image_resized){
-				$this->image_resized = $this->image;
-			}
-			
-			return $this->write( $save_path, $image_quality, $this->image_resized );
-			
-		} else{
-			$count = count($this->images);
-			for( $i = 0; $i < $count; $i++ ){
-				$this->images[$i]['resized'] = $this->write( $save_path.$this->images[$i]['filename'], $image_quality, $this->images[$i]['resized'] );
-			}
-			return $this->images;
-		}
-	}
-	
 	/*
-	
-	*/
-	private function write( $save_path, $image_quality, $image){
-=======
-		if ( !$this->image_resized ) {
-			$this->image_resized = $this->image;
-		}
 		
->>>>>>> Resizer/master
+	*/
+	private function write( $save_path, $image_quality, $image )
+	{
 		// Get extension of the output file
 		$extension = strtolower( File::extension($save_path) );
 		
@@ -401,21 +375,13 @@ class Resizer {
 			case 'jpg':
 			case 'jpeg':
 				if ( imagetypes() & IMG_JPG ) {
-<<<<<<< HEAD
 					imagejpeg( $image , $save_path , $image_quality );
-=======
-					imagejpeg( $this->image_resized , $save_path , $image_quality );
->>>>>>> Resizer/master
 				}
 				break;
 				
 			case 'gif':
 				if ( imagetypes() & IMG_GIF ) {
-<<<<<<< HEAD
 					imagegif( $image , $save_path );
-=======
-					imagegif( $this->image_resized , $save_path );
->>>>>>> Resizer/master
 				}
 				break;
 				
@@ -427,11 +393,7 @@ class Resizer {
 				$invert_scale_quality = 9 - $scale_quality;
 				
 				if ( imagetypes() & IMG_PNG ) {
-<<<<<<< HEAD
 					imagepng( $image , $save_path , $invert_scale_quality );
-=======
-					imagepng( $this->image_resized , $save_path , $invert_scale_quality );
->>>>>>> Resizer/master
 				}
 				break;
 				
@@ -441,11 +403,7 @@ class Resizer {
 		}
 		
 		// Remove the resource for the resized image
-<<<<<<< HEAD
 		imagedestroy( $image );
-=======
-		imagedestroy( $this->image_resized );
->>>>>>> Resizer/master
 		
 		return true;
 	}
@@ -685,9 +643,5 @@ class Resizer {
 		
 		return true;
 	}
-<<<<<<< HEAD
 
-=======
-	
->>>>>>> Resizer/master
 }
