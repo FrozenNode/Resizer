@@ -38,33 +38,37 @@ Param 4
 		->after_upload('Model::method')
 		->upload('file', 'image|max:3000|mimes:jpg,gif,png', 'imgs/originals/'')
 
-3. Calling the resize function remains unchanged
+3. Calling the resize function has changed a good deal.
 
-4. Save return and parameters are slightly changed
-Instead of the first parameter in the save method call being the path & the filename to save the resized image as, it will just be the path with the trailing slash
+Instead of having 3 parameters for width, height, and crop type, you will now pass in an array of arrays containing the info for each resize. Like so:
+	
+	$sizes = array( 
+		array(200 , 200 , 'crop', 'public/images/thumbs/200/', 90 ), 
+		array(300 , 300 , 'crop', 'public/images/thumbs/300/', 90 ), 
+	);
 
-	->save( 'images/thumbs/' , 90 );
+The 4th parameter is the path to save the cropped image, and the 5th parameter is the image quality. So a complete call would now look something like
+	
+	$success = Resizer::open()
+			->upload('file' ,  'image|max:3000|mimes:jpg,gif,png', 'tattoo_imgs/originals/' )
+			->resize( $sizes );
+
+4. The save function no longer exists as the saving is done in the resize function
 
 Currently, the resized image will be given the same name as the original upload, so put the resized in a different folder.
 
-If you are using the upload method, the save will now return an array of arrays containing the same variables listed in step 2
+The resize function will now return an array of arrays containing the same variables listed in step 2
   path:  string containing path relative to /public/ to access the image
   filename: string containing the full filename (including extension) of the uploaded image
-  resized: this will be true or false
+  resized: an array of booleans
 
 If you have specified an after_upload callback there will also be a key in each array with the name callback_result
 So your return would look something like...
 
-	[{"path":"imgs\/originals\/muffins.png", "filename":"muffins.png","resized":true,"callback_result":true}]
+	[{"path":"imgs\/originals\/muffins.png", "filename":"muffins.png","resized":[true,true],"callback_result":true}]
 
 If you are not using the upload method, the save function will return true/false as usual.
 		
 ## To do
 
 Better error reporting and checking
-I will be adding in a way to add multiple resizes to be made for each image. I am thinking the sytax will be something like 
-
-	Instead of 
-	 ->resize( 200 , 200 , 'crop' )
-	 Pass in an array to the first argument
-	 ->resize( array( array( 200, 200, 'crop' ), array( 300, 100, 'auto') ) )
